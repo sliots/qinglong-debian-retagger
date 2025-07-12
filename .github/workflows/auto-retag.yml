@@ -1,0 +1,48 @@
+name: Auto Retag Qinglong Debian Image
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 每天凌晨 2 点 UTC 执行
+  workflow_dispatch:     # 也允许手动运行
+
+jobs:
+  auto-retag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 安装 jq 和 curl
+        run: sudo apt-get update && sudo apt-get install -y jq curl
+
+      - name: 获取 Qinglong 最新版本号（非 debian）
+        id: get_version
+        run: |
+          TAGS_JSON=$(curl -s "https://hub.docker.com/v2/repositories/whyour/qinglong/tags?page_size=100")
+          VERSION=$(echo "$TAGS_JSON" | jq -r '.results[].name' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -Vr | head -n 1)
+          echo "最新版本号：$VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: 登录 Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: 检查是否已存在该 debian 版本标签
+        id: check_exist
+        run: |
+          EXIST=$(curl -s "https://hub.docker.com/v2/repositories/${{ secrets.DOCKER_USERNAME }}/qinglong/tags/${{ steps.get_version.outputs.version }}-debian")
+          if echo "$EXIST" | grep -q "name"; then
+            echo "已经存在该标签，跳过"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 拉取官方 debian 镜像
+        if: steps.check_exist.outputs.skip == 'false'
+        run: docker pull whyour/qinglong:debian
+
+      - name: 重命名为 version-debian 格式
+        if: steps.check_exist.outputs.skip == 'false'
+        run: docker tag whyour/qinglong:debian ${{ secrets.DOCKER_USERNAME }}/qinglong:${{ steps.get_version.outputs.version }}-debian
+
+      - name: 推送新标签
+        if: steps.check_exist.outputs.skip == 'false'
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/qinglong:${{ steps.get_version.outputs.version }}-debian
