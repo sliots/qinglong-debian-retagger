@@ -30,7 +30,7 @@ jobs:
       - name: 检查是否已存在该 debian 版本标签
         id: check_exist
         run: |
-          EXIST=$(curl -s "https://hub.docker.com/v2/repositories/${{ secrets.DOCKER_USERNAME }}/qinglong/tags/${{ steps.get_version.outputs.version }}-debian")
+          EXIST=$(curl -s "https://hub.docker.com/v2/repositories/${{ secrets.DOCKER_HUB_USERNAME }}/qinglong/tags/${{ steps.get_version.outputs.version }}-debian")
           if echo "$EXIST" | grep -q "name"; then
             echo "已经存在该标签，跳过"
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -44,8 +44,8 @@ jobs:
 
       - name: 重命名为 version-debian 格式
         if: steps.check_exist.outputs.skip == 'false'
-        run: docker tag whyour/qinglong:debian ${{ secrets.DOCKER_USERNAME }}/qinglong:${{ steps.get_version.outputs.version }}-debian
+        run: docker tag whyour/qinglong:debian ${{ secrets.DOCKER_HUB_USERNAME }}/qinglong:${{ steps.get_version.outputs.version }}-debian
 
       - name: 推送新标签
         if: steps.check_exist.outputs.skip == 'false'
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/qinglong:${{ steps.get_version.outputs.version }}-debian
+        run: docker push ${{ secrets.DOCKER_HUB_USERNAME }}/qinglong:${{ steps.get_version.outputs.version }}-debian
